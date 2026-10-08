@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BitFinder Survey | Bitnox Technology Abeokuta</title>
+  <meta name="description" content="Help Goodness Boluwatife build BitFinder - an AI model helping Bitnox Technology students discover their ideal tech course and career path.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient Tech Background Elements -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="grid-overlay"></div>
+
+  <!-- Top App Navigation Bar -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <i data-lucide="cpu"></i>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title">BitFinder <span class="badge-tag">AI Model</span></span>
+        <span class="brand-subtitle">Bitnox Technology Abeokuta</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="admin-trigger-btn" class="icon-btn" title="Admin Access">
+        <i data-lucide="shield-check"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="app-container">
+
+    <!-- ==================== LANDING SCREEN ==================== -->
+    <section id="landing-screen" class="screen active">
+      <div class="hero-card glass-panel">
+        <div class="avatar-badge">
+          <div class="avatar-circle">GB</div>
+          <span class="online-indicator"></span>
+        </div>
+        
+        <h1 class="hero-title">Help Build <span class="text-gradient">BitFinder</span></h1>
+        
+        <div class="intro-box">
+          <p class="intro-text">
+            Hi! I'm <strong>Goodness Boluwatife</strong>, a machine learning student building a model called <strong>BitFinder</strong>. BitFinder will help Bitnox Technology students discover the best course and career path for them. Your answers will help me train it. It takes about 3 minutes. No names or phone numbers are collected, and your answers are used only for this project.
+          </p>
+        </div>
+
+        <div class="highlights-grid">
+          <div class="highlight-item">
+            <i data-lucide="clock" class="highlight-icon"></i>
+            <div>
+              <strong>3 Minutes</strong>
+              <span>Quick & smooth</span>
+            </div>
+          </div>
+          <div class="highlight-item">
+            <i data-lucide="user-x" class="highlight-icon"></i>
+            <div>
+              <strong>100% Anonymous</strong>
+              <span>No name or phone</span>
+            </div>
+          </div>
+          <div class="highlight-item">
+            <i data-lucide="sparkles" class="highlight-icon"></i>
+            <div>
+              <strong>AI Training</strong>
+              <span>Help Bitnox peers</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          <button id="start-btn" class="btn btn-primary btn-lg btn-glow">
+            <span>Start Survey</span>
+            <i data-lucide="arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== QUESTIONNAIRE SCREEN ==================== -->
+    <section id="question-screen" class="screen">
+      <!-- Progress Bar Container -->
+      <div class="progress-container glass-panel">
+        <div class="progress-info">
+          <span id="question-counter" class="counter-text">Question 1 of 12</span>
+          <span id="percent-text" class="percent-text">8%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="progress-bar-fill" class="progress-bar-fill" style="width: 8.33%;"></div>
+        </div>
+      </div>
+
+      <!-- Question Card Container -->
+      <div class="question-card glass-panel">
+        <div class="question-header">
+          <span id="question-category" class="question-badge">Category</span>
+          <h2 id="question-title" class="question-title">Question prompt goes here</h2>
+          <p id="question-hint" class="question-hint">Select one option to continue</p>
+        </div>
+
+        <!-- Dynamic Answer Area -->
+        <div id="options-container" class="options-grid">
+          <!-- Dynamic cards injected via JavaScript -->
+        </div>
+
+        <!-- Text Box Input Area (for Q12) -->
+        <div id="text-input-container" class="text-input-wrapper hidden">
+          <textarea id="achievement-textarea" class="custom-textarea" rows="4" placeholder="e.g., I want to build mobile apps to solve local payment challenges in Nigeria and land a remote developer role."></textarea>
+          <div class="char-counter-bar">
+            <span id="char-counter" class="char-counter">0 / 300 characters</span>
+            <span id="char-status" class="char-status"><i data-lucide="alert-circle"></i> Min 20 characters</span>
+          </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="nav-actions">
+          <button id="back-btn" class="btn btn-outline" disabled>
+            <i data-lucide="chevron-left"></i>
+            <span>Back</span>
+          </button>
+          
+          <button id="next-btn" class="btn btn-primary" disabled>
+            <span id="next-btn-text">Next</span>
+            <i id="next-btn-icon" data-lucide="chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== THANK YOU / THANK-YOU SCREEN ==================== -->
+    <section id="thankyou-screen" class="screen">
+      <div class="thankyou-card glass-panel">
+        <div class="success-icon-wrapper">
+          <i data-lucide="check-circle-2" class="success-icon"></i>
+        </div>
+        
+        <h1 class="thankyou-title">Thank you!</h1>
+        <p class="thankyou-subtitle">You just helped build <strong class="text-accent">BitFinder</strong>.</p>
+
+        <div class="submission-summary">
+          <h3><i data-lucide="file-check"></i> Response Recorded</h3>
+          <p>Your responses have been securely saved to the BitFinder ML dataset table. Your feedback is vital for training the recommendation model.</p>
+        </div>
+
+        <div class="share-box">
+          <h4>Share BitFinder Survey with Bitnox Friends</h4>
+          <p>Scanning this QR code allows classmates around the Bitnox office to open this survey instantly!</p>
+
+          <div class="qr-code-wrapper">
+            <div id="qr-code-display" class="qr-canvas-box">
+              <!-- SVG QR Code generated dynamically -->
+            </div>
+            <span class="qr-label">Scan at Bitnox Office</span>
+          </div>
+
+          <div class="share-actions">
+            <button id="copy-link-btn" class="btn btn-secondary btn-sm">
+              <i data-lucide="copy"></i>
+              <span id="copy-btn-text">Copy Link</span>
+            </button>
+            <button id="view-admin-btn" class="btn btn-outline btn-sm">
+              <i data-lucide="shield"></i>
+              <span>Admin Dashboard</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="restart-container">
+          <button id="restart-btn" class="btn btn-link">
+            <i data-lucide="refresh-cw"></i> Submit another response (New Student)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== ADMIN DASHBOARD ==================== -->
+    <section id="admin-screen" class="screen">
+      
+      <!-- Admin Login Box (Password Protected) -->
+      <div id="admin-auth-box" class="admin-auth-card glass-panel">
+        <div class="auth-header">
+          <div class="shield-badge">
+            <i data-lucide="lock"></i>
+          </div>
+          <h2>BitFinder Admin Portal</h2>
+          <p>Protected access for Goodness Boluwatife</p>
+        </div>
+
+        <form id="admin-login-form" class="auth-form">
+          <div class="input-group">
+            <label for="admin-pass-input">Admin Password</label>
+            <input type="password" id="admin-pass-input" class="custom-input" placeholder="Enter password (default: bitnox2026)" required autocomplete="current-password">
+          </div>
+          <p id="auth-error-msg" class="error-msg hidden"><i data-lucide="alert-triangle"></i> Incorrect password. Please try again.</p>
+          <div class="auth-btn-row">
+            <button type="button" id="admin-cancel-btn" class="btn btn-outline">Cancel</button>
+            <button type="submit" class="btn btn-primary">Unlock Dashboard</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Admin Dashboard Content (Shown after login) -->
+      <div id="admin-content-box" class="admin-dashboard-wrapper hidden">
+        <div class="admin-top-bar glass-panel">
+          <div>
+            <h2 class="admin-heading"><i data-lucide="database"></i> BitFinder ML Survey Dataset</h2>
+            <p class="admin-subheading">View, filter, and export student responses for model training</p>
+          </div>
+          <div class="admin-header-actions">
+            <button id="admin-logout-btn" class="btn btn-outline btn-sm">
+              <i data-lucide="log-out"></i> Lock Admin
+            </button>
+            <button id="close-admin-btn" class="btn btn-secondary btn-sm">
+              <i data-lucide="x"></i> Return to Survey
+            </button>
+          </div>
+        </div>
+
+        <!-- Metrics Row -->
+        <div class="metrics-grid">
+          <div class="metric-card glass-panel">
+            <div class="metric-icon cyan"><i data-lucide="users"></i></div>
+            <div class="metric-data">
+              <span class="metric-value" id="stat-total-count">0</span>
+              <span class="metric-label">Total Responses Collected</span>
+            </div>
+          </div>
+
+          <div class="metric-card glass-panel">
+            <div class="metric-icon indigo"><i data-lucide="book-open"></i></div>
+            <div class="metric-data">
+              <span class="metric-value" id="stat-top-course">N/A</span>
+              <span class="metric-label">Most Popular Picked Course</span>
+            </div>
+          </div>
+
+          <div class="metric-card glass-panel">
+            <div class="metric-icon purple"><i data-lucide="target"></i></div>
+            <div class="metric-data">
+              <span class="metric-value" id="stat-top-goal">N/A</span>
+              <span class="metric-label">Primary Student Goal</span>
+            </div>
+          </div>
+
+          <div class="metric-card glass-panel">
+            <div class="metric-icon emerald"><i data-lucide="hard-drive"></i></div>
+            <div class="metric-data">
+              <span class="metric-value" id="stat-storage-type">Local / Supabase</span>
+              <span class="metric-label">Storage Backend Status</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Control Bar & Download CSV -->
+        <div class="table-control-bar glass-panel">
+          <div class="search-filter-box">
+            <div class="search-input-wrap">
+              <i data-lucide="search" class="search-icon"></i>
+              <input type="text" id="admin-search-input" class="search-input" placeholder="Search by course, status, text...">
+            </div>
+          </div>
+
+          <div class="table-action-btns">
+            <button id="supabase-config-btn" class="btn btn-outline btn-sm">
+              <i data-lucide="settings"></i> Supabase Setup
+            </button>
+            <button id="download-csv-btn" class="btn btn-accent btn-sm">
+              <i data-lucide="download"></i> Download CSV (Colab Ready)
+            </button>
+          </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="table-container glass-panel">
+          <div class="table-scroll-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Submitted At</th>
+                  <th>Age Range</th>
+                  <th>Education</th>
+                  <th>Current Status</th>
+                  <th>Tech Exp</th>
+                  <th>Interests</th>
+                  <th>Learning Style</th>
+                  <th>Main Goal</th>
+                  <th>Available Time</th>
+                  <th>Budget</th>
+                  <th>Career Path</th>
+                  <th>Course Picked</th>
+                  <th>Achievement Goal</th>
+                </tr>
+              </thead>
+              <tbody id="responses-table-body">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+          <div id="table-empty-msg" class="table-empty-state hidden">
+            <i data-lucide="inbox"></i>
+            <p>No survey responses recorded yet. Fill out the survey to see data populating here!</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Supabase Credentials Config Modal -->
+  <div id="supabase-modal" class="modal-overlay hidden">
+    <div class="modal-content glass-panel">
+      <div class="modal-header">
+        <h3><i data-lucide="database"></i> Supabase Configuration</h3>
+        <button id="close-modal-btn" class="icon-btn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Connect BitFinder Survey directly to your Supabase project table for cloud persistence.</p>
+        
+        <div class="input-group">
+          <label for="sb-url-input">Supabase Project URL</label>
+          <input type="text" id="sb-url-input" class="custom-input" placeholder="https://your-project.supabase.co">
+        </div>
+        
+        <div class="input-group">
+          <label for="sb-key-input">Supabase Anon Key</label>
+          <input type="password" id="sb-key-input" class="custom-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6...">
+        </div>
+
+        <div class="sql-snippet-box">
+          <div class="sql-header">
+            <span>SQL Table Schema (Copy into Supabase SQL Editor)</span>
+            <button id="copy-sql-btn" class="btn btn-link btn-xs"><i data-lucide="copy"></i> Copy SQL</button>
+          </div>
+          <pre><code id="sql-code-snippet">CREATE TABLE bitfinder_surveys (
+  id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  age_range TEXT,
+  education_level TEXT,
+  current_status TEXT,
+  tech_experience TEXT,
+  interest_areas TEXT,
+  learning_style TEXT,
+  main_goal TEXT,
+  available_time TEXT,
+  budget_range TEXT,
+  career_path TEXT,
+  course_picked TEXT,
+  achievement_text TEXT,
+  submitted_at TIMESTAMPTZ DEFAULT NOW()
+);</code></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="test-sb-btn" class="btn btn-outline">Test Connection</button>
+        <button id="save-sb-btn" class="btn btn-primary">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>
