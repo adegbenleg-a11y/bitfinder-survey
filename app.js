@@ -15,25 +15,28 @@
       education_level: '',
       current_status: '',
       tech_experience: '',
-      interest_areas: [], // array for multi-select
+      interest_areas: [], // array for multi-select (max 3)
       learning_style: '',
       main_goal: '',
       available_time: '',
       budget_range: '',
-      career_path: [], // array for multi-select
+      career_path: [], // array for multi-select (max 2)
       course_picked: '',
       achievement_text: ''
     },
     adminAuthenticated: false,
-    adminPasswordHash: 'bitnox2026', // Default password
+    adminUser: null,
     supabaseUrl: localStorage.getItem('bitfinder_sb_url') || '',
     supabaseKey: localStorage.getItem('bitfinder_sb_key') || '',
     supabaseClient: null,
     isSubmitting: false,
-    hasSubmitted: sessionStorage.getItem('bitfinder_submitted') === 'true'
+    hasSubmitted: sessionStorage.getItem('bitfinder_submitted') === 'true',
+    allResponses: [],
+    sortColumn: 'submitted_at',
+    sortAscending: false
   };
 
-  // List of 12 Questions
+  // List of 12 Questions (Strictly Matched to Database Schema & Constraints)
   const questions = [
     {
       id: 1,
@@ -95,7 +98,7 @@
       key: 'interest_areas',
       category: 'Interests & Passions',
       title: 'Which tech areas interest you most?',
-      hint: 'Tick up to 3 areas (Max 3 options)',
+      hint: 'Tick up to 3 areas (Max 3 choices)',
       type: 'multi',
       maxSelect: 3,
       minSelect: 1,
@@ -203,16 +206,14 @@
           options: [
             { label: 'Machine Learning', icon: 'brain' },
             { label: 'Data Analytics', icon: 'pie-chart' },
-            { label: 'Artificial Intelligence', icon: 'cpu' },
+            { label: 'Prompt Engineering', icon: 'message-square-code' },
             { label: 'Generative AI Mastery', icon: 'sparkles' },
-            { label: 'AI Automation', icon: 'bot' },
-            { label: 'Prompt Engineering', icon: 'message-square-code' }
+            { label: 'AI Automation', icon: 'bot' }
           ]
         },
         {
           name: 'IT & Security',
           options: [
-            { label: 'Information Technology', icon: 'monitor' },
             { label: 'Cybersecurity', icon: 'shield-check' }
           ]
         },
@@ -225,9 +226,10 @@
           ]
         },
         {
-          name: 'Language & Communication',
+          name: 'Language & General',
           options: [
-            { label: 'ESL Tutoring', icon: 'languages' }
+            { label: 'ESL Tutoring', icon: 'languages' },
+            { label: 'Not decided yet', icon: 'help-circle' }
           ]
         }
       ]
@@ -252,6 +254,12 @@
     thankyouScreen: document.getElementById('thankyou-screen'),
     adminScreen: document.getElementById('admin-screen'),
 
+    // Toast Banner
+    toastBanner: document.getElementById('toast-banner'),
+    toastIcon: document.getElementById('toast-icon'),
+    toastMessage: document.getElementById('toast-message'),
+    toastCloseBtn: document.getElementById('toast-close-btn'),
+
     // Landing Screen Controls
     startBtn: document.getElementById('start-btn'),
     adminTriggerBtn: document.getElementById('admin-trigger-btn'),
@@ -272,6 +280,7 @@
     nextBtn: document.getElementById('next-btn'),
     nextBtnText: document.getElementById('next-btn-text'),
     nextBtnIcon: document.getElementById('next-btn-icon'),
+    hpField: document.getElementById('hp_field'),
 
     // Thank You Screen Controls
     qrCodeDisplay: document.getElementById('qr-code-display'),
@@ -283,18 +292,27 @@
     // Admin Controls
     adminAuthBox: document.getElementById('admin-auth-box'),
     adminLoginForm: document.getElementById('admin-login-form'),
+    adminEmailInput: document.getElementById('admin-email-input'),
     adminPassInput: document.getElementById('admin-pass-input'),
+    adminLoginBtn: document.getElementById('admin-login-btn'),
     authErrorMsg: document.getElementById('auth-error-msg'),
+    authErrorText: document.getElementById('auth-error-text'),
     adminCancelBtn: document.getElementById('admin-cancel-btn'),
     adminContentBox: document.getElementById('admin-content-box'),
+    adminUserBadge: document.getElementById('admin-user-badge'),
     adminLogoutBtn: document.getElementById('admin-logout-btn'),
     closeAdminBtn: document.getElementById('close-admin-btn'),
 
-    // Admin Dashboard Stats & Table
+    // Admin Dashboard Stats & Breakdown
     statTotalCount: document.getElementById('stat-total-count'),
+    statTodayCount: document.getElementById('stat-today-count'),
     statTopCourse: document.getElementById('stat-top-course'),
-    statTopGoal: document.getElementById('stat-top-goal'),
-    statStorageType: document.getElementById('stat-storage-type'),
+    statTopInterest: document.getElementById('stat-top-interest'),
+    courseBreakdownList: document.getElementById('course-breakdown-list'),
+    interestBreakdownList: document.getElementById('interest-breakdown-list'),
+    dailyBreakdownList: document.getElementById('daily-breakdown-list'),
+
+    // Admin Table Controls
     adminSearchInput: document.getElementById('admin-search-input'),
     supabaseConfigBtn: document.getElementById('supabase-config-btn'),
     downloadCsvBtn: document.getElementById('download-csv-btn'),
@@ -307,8 +325,7 @@
     sbUrlInput: document.getElementById('sb-url-input'),
     sbKeyInput: document.getElementById('sb-key-input'),
     testSbBtn: document.getElementById('test-sb-btn'),
-    saveSbBtn: document.getElementById('save-sb-btn'),
-    copySqlBtn: document.getElementById('copy-sql-btn')
+    saveSbBtn: document.getElementById('save-sb-btn')
   };
 
   // Initialize Application
@@ -316,6 +333,7 @@
     setupSupabaseClient();
     bindEvents();
     renderQRCode();
+    checkExistingSession();
 
     // Check URL route hash for #admin
     if (window.location.hash === '#admin') {
@@ -323,23 +341,59 @@
     }
   }
 
+  // Toast Notification Helper
+  function showToast(message, isError = true) {
+    if (!DOM.toastBanner) return;
+    DOM.toastMessage.textContent = message;
+    if (isError) {
+      DOM.toastBanner.className = 'toast-banner toast-error';
+    } else {
+      DOM.toastBanner.className = 'toast-banner toast-success';
+    }
+    DOM.toastBanner.classList.remove('hidden');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function hideToast() {
+    if (DOM.toastBanner) DOM.toastBanner.classList.add('hidden');
+  }
+
   // Supabase Client Setup
   function setupSupabaseClient() {
     if (state.supabaseUrl && state.supabaseKey && window.supabase) {
       try {
         state.supabaseClient = window.supabase.createClient(state.supabaseUrl, state.supabaseKey);
-        DOM.statStorageType.textContent = 'Supabase Cloud';
       } catch (err) {
         console.warn('Supabase init failed:', err);
-        DOM.statStorageType.textContent = 'LocalStorage Only';
       }
-    } else {
-      DOM.statStorageType.textContent = 'LocalStorage Only';
+    }
+  }
+
+  // Check Active Supabase Auth Session
+  async function checkExistingSession() {
+    if (state.supabaseClient) {
+      try {
+        const { data: { session } } = await state.supabaseClient.auth.getSession();
+        if (session && session.user) {
+          state.adminAuthenticated = true;
+          state.adminUser = session.user;
+          DOM.adminUserBadge.innerHTML = `<i data-lucide="user-check"></i> ${session.user.email}`;
+          DOM.adminAuthBox.classList.add('hidden');
+          DOM.adminContentBox.classList.remove('hidden');
+          loadAdminDashboardData();
+        }
+      } catch (e) {
+        console.log('No existing session:', e);
+      }
     }
   }
 
   // Event Listeners Binding
   function bindEvents() {
+    if (DOM.toastCloseBtn) {
+      DOM.toastCloseBtn.addEventListener('click', hideToast);
+    }
+
     DOM.startBtn.addEventListener('click', () => {
       state.currentStep = 1;
       showScreen(DOM.questionScreen);
@@ -359,27 +413,20 @@
     DOM.viewAdminBtn.addEventListener('click', () => showScreen(DOM.adminScreen));
     DOM.restartBtn.addEventListener('click', handleRestart);
 
-    // Admin Auth Form
-    DOM.adminLoginForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const entered = DOM.adminPassInput.value.trim();
-      if (entered === state.adminPasswordHash) {
-        state.adminAuthenticated = true;
-        DOM.adminAuthBox.classList.add('hidden');
-        DOM.adminContentBox.classList.remove('hidden');
-        DOM.authErrorMsg.classList.add('hidden');
-        loadAdminDashboardData();
-      } else {
-        DOM.authErrorMsg.classList.remove('hidden');
-      }
-    });
+    // Admin Auth Form (Supabase Auth Login)
+    DOM.adminLoginForm.addEventListener('submit', handleAdminLogin);
 
     DOM.adminCancelBtn.addEventListener('click', () => {
       showScreen(DOM.landingScreen);
     });
 
-    DOM.adminLogoutBtn.addEventListener('click', () => {
+    DOM.adminLogoutBtn.addEventListener('click', async () => {
+      if (state.supabaseClient) {
+        await state.supabaseClient.auth.signOut();
+      }
       state.adminAuthenticated = false;
+      state.adminUser = null;
+      DOM.adminEmailInput.value = '';
       DOM.adminPassInput.value = '';
       DOM.adminAuthBox.classList.remove('hidden');
       DOM.adminContentBox.classList.add('hidden');
@@ -395,6 +442,20 @@
     });
 
     DOM.downloadCsvBtn.addEventListener('click', exportCSV);
+
+    // Sorting headers listener
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.getAttribute('data-sort');
+        if (state.sortColumn === col) {
+          state.sortAscending = !state.sortAscending;
+        } else {
+          state.sortColumn = col;
+          state.sortAscending = true;
+        }
+        renderTableRows(getFilteredResponses());
+      });
+    });
 
     // Supabase Modal Events
     DOM.supabaseConfigBtn.addEventListener('click', () => {
@@ -414,7 +475,7 @@
       localStorage.setItem('bitfinder_sb_key', state.supabaseKey);
       setupSupabaseClient();
       DOM.supabaseModal.classList.add('hidden');
-      alert('Supabase credentials saved successfully!');
+      showToast('Supabase credentials saved successfully!', false);
     });
 
     DOM.testSbBtn.addEventListener('click', async () => {
@@ -426,27 +487,68 @@
       }
       try {
         const tempClient = window.supabase.createClient(tempUrl, tempKey);
-        const { error } = await tempClient.from('bitfinder_surveys').select('id').limit(1);
-        if (error) {
-          alert('Supabase connection error: ' + error.message);
+        const { error } = await tempClient.from('survey_responses').select('id').limit(1);
+        if (error && error.code !== 'PGRST116') {
+          alert('Supabase connection note: ' + error.message);
         } else {
-          alert('Success! Supabase database connection verified.');
+          alert('Success! Connected to Supabase project table survey_responses.');
         }
       } catch (err) {
         alert('Connection test failed: ' + err.message);
       }
     });
+  }
 
-    DOM.copySqlBtn.addEventListener('click', () => {
-      const sqlCode = document.getElementById('sql-code-snippet').innerText;
-      navigator.clipboard.writeText(sqlCode).then(() => {
-        DOM.copySqlBtn.innerHTML = '<i data-lucide="check"></i> Copied!';
-        setTimeout(() => {
-          DOM.copySqlBtn.innerHTML = '<i data-lucide="copy"></i> Copy SQL';
-          lucide.createIcons();
-        }, 2000);
+  // Handle Admin Login with Supabase Auth
+  async function handleAdminLogin(e) {
+    e.preventDefault();
+    hideToast();
+
+    const email = DOM.adminEmailInput.value.trim();
+    const password = DOM.adminPassInput.value.trim();
+
+    if (!email || !password) {
+      DOM.authErrorText.textContent = 'Please enter both email and password.';
+      DOM.authErrorMsg.classList.remove('hidden');
+      return;
+    }
+
+    if (!state.supabaseClient) {
+      DOM.authErrorText.textContent = 'Supabase client is not configured yet. Click "Supabase Setup" or check environment keys.';
+      DOM.authErrorMsg.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      DOM.adminLoginBtn.disabled = true;
+      DOM.adminLoginBtn.querySelector('span').textContent = 'Authenticating...';
+
+      const { data, error } = await state.supabaseClient.auth.signInWithPassword({
+        email,
+        password
       });
-    });
+
+      DOM.adminLoginBtn.disabled = false;
+      DOM.adminLoginBtn.querySelector('span').textContent = 'Sign In as Admin';
+
+      if (error) {
+        DOM.authErrorText.textContent = error.message || 'Invalid admin credentials.';
+        DOM.authErrorMsg.classList.remove('hidden');
+      } else if (data.user) {
+        state.adminAuthenticated = true;
+        state.adminUser = data.user;
+        DOM.adminUserBadge.innerHTML = `<i data-lucide="user-check"></i> ${data.user.email}`;
+        DOM.adminAuthBox.classList.add('hidden');
+        DOM.adminContentBox.classList.remove('hidden');
+        DOM.authErrorMsg.classList.add('hidden');
+        loadAdminDashboardData();
+      }
+    } catch (err) {
+      DOM.adminLoginBtn.disabled = false;
+      DOM.adminLoginBtn.querySelector('span').textContent = 'Sign In as Admin';
+      DOM.authErrorText.textContent = err.message || 'Authentication error occurred.';
+      DOM.authErrorMsg.classList.remove('hidden');
+    }
   }
 
   // Screen Switcher
@@ -457,7 +559,6 @@
     screenEl.classList.add('active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Refresh Lucide Icons
     if (window.lucide) {
       lucide.createIcons();
     }
@@ -685,63 +786,117 @@
     }
   }
 
-  // Submit Survey to Supabase / LocalStorage
+  // Submit Survey to Server API / Supabase
   async function submitSurvey() {
     if (state.isSubmitting || state.hasSubmitted) return;
 
+    hideToast();
     state.isSubmitting = true;
     DOM.nextBtn.disabled = true;
     DOM.nextBtnText.textContent = 'Submitting...';
 
+    // 1. Client-Side Spam / Honeypot Check
+    const hpVal = DOM.hpField ? DOM.hpField.value.trim() : '';
+    if (hpVal !== '') {
+      showToast('Submission rejected due to spam detection.');
+      state.isSubmitting = false;
+      validateCurrentQuestion();
+      return;
+    }
+
+    // 2. Client-Side Browser Rate Guard (Limit 1 submission per browser per hour)
+    const lastSubmitTime = localStorage.getItem('bitfinder_last_submit');
+    const now = Date.now();
+    if (lastSubmitTime && (now - parseInt(lastSubmitTime, 10)) < 3600000) {
+      const minutesLeft = Math.ceil((3600000 - (now - parseInt(lastSubmitTime, 10))) / 60000);
+      showToast(`You have already submitted a survey recently. Please wait ${minutesLeft} minutes before submitting another.`);
+      state.isSubmitting = false;
+      validateCurrentQuestion();
+      return;
+    }
+
     // Format Data Payload according to exact required column names:
-    // age_range, education_level, current_status, tech_experience, interest_areas, learning_style, main_goal, available_time, budget_range, career_path, course_picked, achievement_text, submitted_at
     const payload = {
       age_range: state.answers.age_range,
       education_level: state.answers.education_level,
       current_status: state.answers.current_status,
       tech_experience: state.answers.tech_experience,
-      interest_areas: Array.isArray(state.answers.interest_areas) ? state.answers.interest_areas.join(', ') : state.answers.interest_areas,
+      interest_areas: state.answers.interest_areas, // Array of strings
       learning_style: state.answers.learning_style,
       main_goal: state.answers.main_goal,
       available_time: state.answers.available_time,
       budget_range: state.answers.budget_range,
-      career_path: Array.isArray(state.answers.career_path) ? state.answers.career_path.join(', ') : state.answers.career_path,
+      career_path: state.answers.career_path, // Array of strings
       course_picked: state.answers.course_picked,
       achievement_text: state.answers.achievement_text,
-      submitted_at: new Date().toISOString()
+      hp_field: hpVal
     };
 
-    // Save to LocalStorage Store
-    saveLocalResponse(payload);
+    let submitSuccess = false;
 
-    // Save to Supabase Cloud if configured
-    if (state.supabaseClient) {
-      try {
-        const { error } = await state.supabaseClient.from('bitfinder_surveys').insert([payload]);
-        if (error) {
-          console.error('Supabase save error:', error);
+    // A. Submit via Backend Server Endpoint `/api/submit`
+    try {
+      const response = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        submitSuccess = true;
+      } else {
+        console.warn('Backend endpoint returned error:', result.error);
+        // Fallback B: If local/standalone client with direct Supabase configuration
+        if (state.supabaseClient) {
+          submitSuccess = await submitDirectToSupabase(payload);
+        } else {
+          showToast(result.error || 'Submission failed. Please check your answers and try again.');
         }
-      } catch (err) {
-        console.error('Supabase submission exception:', err);
+      }
+    } catch (fetchErr) {
+      console.warn('Backend server endpoint unreachable, trying direct Supabase client...', fetchErr);
+      // Fallback B: Direct Supabase client insertion if API endpoint is unhosted
+      if (state.supabaseClient) {
+        submitSuccess = await submitDirectToSupabase(payload);
+      } else {
+        showToast('Network error while connecting to server. Your answers are saved, please click Submit again to retry.');
       }
     }
 
-    state.hasSubmitted = true;
-    sessionStorage.setItem('bitfinder_submitted', 'true');
-    state.isSubmitting = false;
-
-    showScreen(DOM.thankyouScreen);
+    if (submitSuccess) {
+      localStorage.setItem('bitfinder_last_submit', Date.now().toString());
+      state.hasSubmitted = true;
+      sessionStorage.setItem('bitfinder_submitted', 'true');
+      state.isSubmitting = false;
+      showScreen(DOM.thankyouScreen);
+    } else {
+      // Keep student's answers in state.answers so they lose NOTHING!
+      state.isSubmitting = false;
+      validateCurrentQuestion();
+    }
   }
 
-  // LocalStorage Response Store
-  function saveLocalResponse(record) {
-    const existing = JSON.parse(localStorage.getItem('bitfinder_responses') || '[]');
-    existing.push(record);
-    localStorage.setItem('bitfinder_responses', JSON.stringify(existing));
-  }
+  // Fallback Direct Supabase Insert
+  async function submitDirectToSupabase(payload) {
+    try {
+      const dbPayload = {
+        ...payload,
+        submitted_at: new Date().toISOString()
+      };
+      delete dbPayload.hp_field;
 
-  function getLocalResponses() {
-    return JSON.parse(localStorage.getItem('bitfinder_responses') || '[]');
+      const { error } = await state.supabaseClient.from('survey_responses').insert([dbPayload]);
+      if (error) {
+        showToast(`Database error: ${error.message}. Please retry.`);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      showToast('Database connection failed. Please try again.');
+      return false;
+    }
   }
 
   // Restart Survey for Another Response
@@ -764,23 +919,27 @@
       course_picked: '',
       achievement_text: ''
     };
+    hideToast();
     showScreen(DOM.questionScreen);
     renderQuestion();
   }
 
   // Load Admin Dashboard Data
   async function loadAdminDashboardData() {
-    let responses = getLocalResponses();
+    let responses = [];
 
-    // Fetch from Supabase if connected
+    // Fetch from Supabase as Authenticated Admin
     if (state.supabaseClient) {
       try {
         const { data, error } = await state.supabaseClient
-          .from('bitfinder_surveys')
+          .from('survey_responses')
           .select('*')
           .order('submitted_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
+        if (error) {
+          console.error('Supabase fetch error:', error);
+          showToast(`Admin data fetch note: ${error.message}`);
+        } else if (data) {
           responses = data;
         }
       } catch (err) {
@@ -789,50 +948,134 @@
     }
 
     state.allResponses = responses;
+    updateAdminMetrics(responses);
+    renderTableRows(getFilteredResponses());
+  }
 
-    // Update Stats
+  // Update Metrics & Breakdown Visualizations
+  function updateAdminMetrics(responses) {
     DOM.statTotalCount.textContent = responses.length;
 
-    if (responses.length > 0) {
-      const courseCounts = {};
-      const goalCounts = {};
-      responses.forEach(r => {
-        if (r.course_picked) courseCounts[r.course_picked] = (courseCounts[r.course_picked] || 0) + 1;
-        if (r.main_goal) goalCounts[r.main_goal] = (goalCounts[r.main_goal] || 0) + 1;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let todayCount = 0;
+    const courseCounts = {};
+    const interestCounts = {};
+    const dailyCounts = {};
+
+    responses.forEach(r => {
+      // Today count
+      const rDate = r.submitted_at ? r.submitted_at.slice(0, 10) : '';
+      if (rDate === todayStr) todayCount++;
+
+      // Daily breakdown
+      if (rDate) {
+        dailyCounts[rDate] = (dailyCounts[rDate] || 0) + 1;
+      }
+
+      // Course picked breakdown
+      if (r.course_picked) {
+        courseCounts[r.course_picked] = (courseCounts[r.course_picked] || 0) + 1;
+      }
+
+      // Interest areas breakdown (un-nest arrays)
+      let interests = [];
+      if (Array.isArray(r.interest_areas)) {
+        interests = r.interest_areas;
+      } else if (typeof r.interest_areas === 'string') {
+        interests = r.interest_areas.split(';').map(s => s.trim()).filter(Boolean);
+      }
+      interests.forEach(interest => {
+        interestCounts[interest] = (interestCounts[interest] || 0) + 1;
       });
+    });
 
-      const topCourse = Object.keys(courseCounts).reduce((a, b) => courseCounts[a] > courseCounts[b] ? a : b, 'N/A');
-      const topGoal = Object.keys(goalCounts).reduce((a, b) => goalCounts[a] > goalCounts[b] ? a : b, 'N/A');
+    DOM.statTodayCount.textContent = todayCount;
 
-      DOM.statTopCourse.textContent = topCourse;
-      DOM.statTopGoal.textContent = topGoal;
-    } else {
-      DOM.statTopCourse.textContent = 'N/A';
-      DOM.statTopGoal.textContent = 'N/A';
+    // Top Course Picked
+    const topCourse = Object.keys(courseCounts).length > 0
+      ? Object.keys(courseCounts).reduce((a, b) => courseCounts[a] > courseCounts[b] ? a : b)
+      : 'N/A';
+    DOM.statTopCourse.textContent = topCourse;
+
+    // Top Interest Area
+    const topInterest = Object.keys(interestCounts).length > 0
+      ? Object.keys(interestCounts).reduce((a, b) => interestCounts[a] > interestCounts[b] ? a : b)
+      : 'N/A';
+    DOM.statTopInterest.textContent = topInterest;
+
+    // Render Breakdown Lists
+    renderBreakdownList(DOM.courseBreakdownList, courseCounts, responses.length);
+    renderBreakdownList(DOM.interestBreakdownList, interestCounts, responses.length);
+    renderBreakdownList(DOM.dailyBreakdownList, dailyCounts, responses.length, true);
+  }
+
+  // Render Visual Progress Bars for Metrics
+  function renderBreakdownList(containerEl, countsObj, total, isDate = false) {
+    if (!containerEl) return;
+    containerEl.innerHTML = '';
+
+    const keys = Object.keys(countsObj).sort((a, b) => isDate ? b.localeCompare(a) : countsObj[b] - countsObj[a]);
+
+    if (keys.length === 0) {
+      containerEl.innerHTML = '<span class="breakdown-empty">No data available</span>';
+      return;
     }
 
-    renderTableRows(getFilteredResponses());
+    keys.forEach(key => {
+      const count = countsObj[key];
+      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+
+      const item = document.createElement('div');
+      item.className = 'breakdown-item';
+      item.innerHTML = `
+        <div class="breakdown-info">
+          <span class="breakdown-name">${key}</span>
+          <span class="breakdown-val">${count} (${pct}%)</span>
+        </div>
+        <div class="breakdown-bar-bg">
+          <div class="breakdown-bar-fill" style="width: ${pct}%;"></div>
+        </div>
+      `;
+      containerEl.appendChild(item);
+    });
   }
 
   // Filter Responses by Search Keyword
   function getFilteredResponses() {
-    const list = state.allResponses || getLocalResponses();
+    const list = state.allResponses || [];
     const query = (DOM.adminSearchInput.value || '').toLowerCase().trim();
 
-    if (!query) return list;
+    let filtered = list;
+    if (query) {
+      filtered = list.filter(r => {
+        const interestStr = Array.isArray(r.interest_areas) ? r.interest_areas.join(' ') : (r.interest_areas || '');
+        const careerStr = Array.isArray(r.career_path) ? r.career_path.join(' ') : (r.career_path || '');
+        return (
+          (r.course_picked || '').toLowerCase().includes(query) ||
+          (r.main_goal || '').toLowerCase().includes(query) ||
+          (r.current_status || '').toLowerCase().includes(query) ||
+          (r.achievement_text || '').toLowerCase().includes(query) ||
+          interestStr.toLowerCase().includes(query) ||
+          careerStr.toLowerCase().includes(query)
+        );
+      });
+    }
 
-    return list.filter(r => {
-      return (
-        (r.course_picked || '').toLowerCase().includes(query) ||
-        (r.main_goal || '').toLowerCase().includes(query) ||
-        (r.current_status || '').toLowerCase().includes(query) ||
-        (r.achievement_text || '').toLowerCase().includes(query) ||
-        (r.interest_areas || '').toLowerCase().includes(query)
-      );
+    // Apply Sorting
+    return filtered.sort((a, b) => {
+      let valA = a[state.sortColumn] || '';
+      let valB = b[state.sortColumn] || '';
+
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+
+      if (valA < valB) return state.sortAscending ? -1 : 1;
+      if (valA > valB) return state.sortAscending ? 1 : -1;
+      return 0;
     });
   }
 
-  // Render Data Table Rows
+  // Render Data Table Rows with Delete Option
   function renderTableRows(rows) {
     DOM.responsesTableBody.innerHTML = '';
 
@@ -847,35 +1090,79 @@
       const tr = document.createElement('tr');
       const dateStr = r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() + ' ' + new Date(r.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
 
+      const interestStr = Array.isArray(r.interest_areas) ? r.interest_areas.join('; ') : (r.interest_areas || '-');
+      const careerStr = Array.isArray(r.career_path) ? r.career_path.join('; ') : (r.career_path || '-');
+
       tr.innerHTML = `
         <td>${idx + 1}</td>
+        <td>
+          <button class="btn btn-danger btn-xs delete-row-btn" data-id="${r.id}" title="Delete Response">
+            <i data-lucide="trash-2"></i> Delete
+          </button>
+        </td>
         <td>${dateStr}</td>
         <td>${r.age_range || '-'}</td>
         <td>${r.education_level || '-'}</td>
         <td>${r.current_status || '-'}</td>
         <td>${r.tech_experience || '-'}</td>
-        <td>${r.interest_areas || '-'}</td>
+        <td>${interestStr}</td>
         <td>${r.learning_style || '-'}</td>
         <td>${r.main_goal || '-'}</td>
         <td>${r.available_time || '-'}</td>
         <td>${r.budget_range || '-'}</td>
-        <td>${r.career_path || '-'}</td>
+        <td>${careerStr}</td>
         <td><strong>${r.course_picked || '-'}</strong></td>
         <td>${r.achievement_text || '-'}</td>
       `;
+
+      // Attach Delete Listener
+      const delBtn = tr.querySelector('.delete-row-btn');
+      delBtn.addEventListener('click', () => handleDeleteRow(r.id, r.course_picked));
+
       DOM.responsesTableBody.appendChild(tr);
     });
+
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Delete Individual Response Row
+  async function handleDeleteRow(rowId, courseName) {
+    if (!rowId) return;
+
+    const confirmed = confirm(`Are you sure you want to delete this response for "${courseName || 'Selected Course'}"?\n\nThis action cannot be undone.`);
+    if (!confirmed) return;
+
+    if (state.supabaseClient) {
+      try {
+        const { error } = await state.supabaseClient
+          .from('survey_responses')
+          .delete()
+          .eq('id', rowId);
+
+        if (error) {
+          alert('Delete failed: ' + error.message);
+        } else {
+          showToast('Response deleted successfully.', false);
+          loadAdminDashboardData();
+        }
+      } catch (err) {
+        alert('Delete error: ' + err.message);
+      }
+    }
   }
 
   // Export Responses as CSV for Google Colab / Pandas
   function exportCSV() {
-    const rows = state.allResponses || getLocalResponses();
+    const rows = state.allResponses || [];
     if (!rows || rows.length === 0) {
       alert('No responses available to export.');
       return;
     }
 
+    // Exact required columns:
+    // id, age_range, education_level, current_status, tech_experience, interest_areas, learning_style, main_goal, available_time, budget_range, career_path, course_picked, achievement_text, submitted_at
     const headers = [
+      'id',
       'age_range',
       'education_level',
       'current_status',
@@ -893,11 +1180,15 @@
 
     const escapeCSV = (val) => {
       if (val === null || val === undefined) return '""';
+      if (Array.isArray(val)) {
+        // Multi-select values joined with a semicolon (;) as specified
+        val = val.join(';');
+      }
       const str = String(val).replace(/"/g, '""');
       return `"${str}"`;
     };
 
-    let csvContent = headers.join(',') + '\n';
+    let csvContent = '\uFEFF' + headers.join(',') + '\n'; // BOM for UTF-8
 
     rows.forEach(r => {
       const line = headers.map(h => escapeCSV(r[h])).join(',');
@@ -927,8 +1218,6 @@
 
   // Render SVG QR Code Generator
   function renderQRCode() {
-    const url = window.location.href;
-    // Generate simple SVG QR Code placeholder graphic or interactive QR pattern
     DOM.qrCodeDisplay.innerHTML = `
       <svg width="140" height="140" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="100" height="100" fill="white"/>

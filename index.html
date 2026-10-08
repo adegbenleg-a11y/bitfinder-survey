@@ -21,6 +21,9 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Hidden Spam Protection Honeypot Field -->
+  <input type="text" id="hp_field" name="hp_field" style="display:none !important;" tabindex="-1" autocomplete="off" aria-hidden="true">
+
   <!-- Ambient Tech Background Elements -->
   <div class="bg-glow bg-glow-1"></div>
   <div class="bg-glow bg-glow-2"></div>
@@ -46,6 +49,15 @@
 
   <!-- Main Application Container -->
   <main class="app-container">
+
+    <!-- Toast / Submission Status Message Banner -->
+    <div id="toast-banner" class="toast-banner hidden">
+      <div class="toast-content">
+        <i id="toast-icon" data-lucide="alert-circle" class="toast-icon"></i>
+        <span id="toast-message">An error occurred during submission.</span>
+      </div>
+      <button id="toast-close-btn" class="toast-close"><i data-lucide="x"></i></button>
+    </div>
 
     <!-- ==================== LANDING SCREEN ==================== -->
     <section id="landing-screen" class="screen active">
@@ -146,7 +158,7 @@
       </div>
     </section>
 
-    <!-- ==================== THANK YOU / THANK-YOU SCREEN ==================== -->
+    <!-- ==================== THANK YOU SCREEN ==================== -->
     <section id="thankyou-screen" class="screen">
       <div class="thankyou-card glass-panel">
         <div class="success-icon-wrapper">
@@ -158,7 +170,7 @@
 
         <div class="submission-summary">
           <h3><i data-lucide="file-check"></i> Response Recorded</h3>
-          <p>Your responses have been securely saved to the BitFinder ML dataset table. Your feedback is vital for training the recommendation model.</p>
+          <p>Your responses have been securely saved to the BitFinder survey dataset. Your feedback is vital for training the recommendation model in Google Colab.</p>
         </div>
 
         <div class="share-box">
@@ -195,25 +207,32 @@
     <!-- ==================== ADMIN DASHBOARD ==================== -->
     <section id="admin-screen" class="screen">
       
-      <!-- Admin Login Box (Password Protected) -->
+      <!-- Admin Login Box (Supabase Auth Email + Password) -->
       <div id="admin-auth-box" class="admin-auth-card glass-panel">
         <div class="auth-header">
           <div class="shield-badge">
             <i data-lucide="lock"></i>
           </div>
           <h2>BitFinder Admin Portal</h2>
-          <p>Protected access for Goodness Boluwatife</p>
+          <p>Protected Supabase Auth access for BitFinder Administrators</p>
         </div>
 
         <form id="admin-login-form" class="auth-form">
           <div class="input-group">
-            <label for="admin-pass-input">Admin Password</label>
-            <input type="password" id="admin-pass-input" class="custom-input" placeholder="Enter password (default: bitnox2026)" required autocomplete="current-password">
+            <label for="admin-email-input">Admin Email</label>
+            <input type="email" id="admin-email-input" class="custom-input" placeholder="admin@bitnox.tech" required autocomplete="username">
           </div>
-          <p id="auth-error-msg" class="error-msg hidden"><i data-lucide="alert-triangle"></i> Incorrect password. Please try again.</p>
+          <div class="input-group">
+            <label for="admin-pass-input">Admin Password</label>
+            <input type="password" id="admin-pass-input" class="custom-input" placeholder="••••••••••••" required autocomplete="current-password">
+          </div>
+          <p id="auth-error-msg" class="error-msg hidden"><i data-lucide="alert-triangle"></i> <span id="auth-error-text">Authentication failed. Please check credentials.</span></p>
           <div class="auth-btn-row">
             <button type="button" id="admin-cancel-btn" class="btn btn-outline">Cancel</button>
-            <button type="submit" class="btn btn-primary">Unlock Dashboard</button>
+            <button type="submit" id="admin-login-btn" class="btn btn-primary">
+              <i data-lucide="key-round"></i>
+              <span>Sign In as Admin</span>
+            </button>
           </div>
         </form>
       </div>
@@ -223,11 +242,12 @@
         <div class="admin-top-bar glass-panel">
           <div>
             <h2 class="admin-heading"><i data-lucide="database"></i> BitFinder ML Survey Dataset</h2>
-            <p class="admin-subheading">View, filter, and export student responses for model training</p>
+            <p class="admin-subheading">View, filter, analyze, and export student responses for Colab model training</p>
           </div>
           <div class="admin-header-actions">
+            <span id="admin-user-badge" class="admin-user-tag"><i data-lucide="user"></i> Admin</span>
             <button id="admin-logout-btn" class="btn btn-outline btn-sm">
-              <i data-lucide="log-out"></i> Lock Admin
+              <i data-lucide="log-out"></i> Log Out
             </button>
             <button id="close-admin-btn" class="btn btn-secondary btn-sm">
               <i data-lucide="x"></i> Return to Survey
@@ -241,31 +261,53 @@
             <div class="metric-icon cyan"><i data-lucide="users"></i></div>
             <div class="metric-data">
               <span class="metric-value" id="stat-total-count">0</span>
-              <span class="metric-label">Total Responses Collected</span>
+              <span class="metric-label">Total Responses</span>
             </div>
           </div>
 
           <div class="metric-card glass-panel">
-            <div class="metric-icon indigo"><i data-lucide="book-open"></i></div>
+            <div class="metric-icon indigo"><i data-lucide="calendar-check"></i></div>
+            <div class="metric-data">
+              <span class="metric-value" id="stat-today-count">0</span>
+              <span class="metric-label">Responses Today</span>
+            </div>
+          </div>
+
+          <div class="metric-card glass-panel">
+            <div class="metric-icon purple"><i data-lucide="book-open"></i></div>
             <div class="metric-data">
               <span class="metric-value" id="stat-top-course">N/A</span>
-              <span class="metric-label">Most Popular Picked Course</span>
+              <span class="metric-label">Most Picked Course</span>
             </div>
           </div>
 
           <div class="metric-card glass-panel">
-            <div class="metric-icon purple"><i data-lucide="target"></i></div>
+            <div class="metric-icon emerald"><i data-lucide="heart"></i></div>
             <div class="metric-data">
-              <span class="metric-value" id="stat-top-goal">N/A</span>
-              <span class="metric-label">Primary Student Goal</span>
+              <span class="metric-value" id="stat-top-interest">N/A</span>
+              <span class="metric-label">Top Interest Area</span>
             </div>
           </div>
+        </div>
 
-          <div class="metric-card glass-panel">
-            <div class="metric-icon emerald"><i data-lucide="hard-drive"></i></div>
-            <div class="metric-data">
-              <span class="metric-value" id="stat-storage-type">Local / Supabase</span>
-              <span class="metric-label">Storage Backend Status</span>
+        <!-- Analytics Breakdown Accordion / Grid -->
+        <div class="analytics-row glass-panel">
+          <div class="analytics-col">
+            <h3><i data-lucide="bar-chart-3"></i> Responses per Course Picked</h3>
+            <div id="course-breakdown-list" class="breakdown-list">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+          <div class="analytics-col">
+            <h3><i data-lucide="pie-chart"></i> Responses per Interest Area</h3>
+            <div id="interest-breakdown-list" class="breakdown-list">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+          <div class="analytics-col">
+            <h3><i data-lucide="trending-up"></i> Daily Submissions Trend</h3>
+            <div id="daily-breakdown-list" class="breakdown-list">
+              <!-- Injected via JS -->
             </div>
           </div>
         </div>
@@ -275,7 +317,7 @@
           <div class="search-filter-box">
             <div class="search-input-wrap">
               <i data-lucide="search" class="search-icon"></i>
-              <input type="text" id="admin-search-input" class="search-input" placeholder="Search by course, status, text...">
+              <input type="text" id="admin-search-input" class="search-input" placeholder="Search by course, text, status, interest...">
             </div>
           </div>
 
@@ -295,19 +337,20 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Submitted At</th>
-                  <th>Age Range</th>
-                  <th>Education</th>
-                  <th>Current Status</th>
-                  <th>Tech Exp</th>
+                  <th data-sort="id"># <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th>Actions</th>
+                  <th data-sort="submitted_at">Submitted At <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th data-sort="age_range">Age Range <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th data-sort="education_level">Education <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th data-sort="current_status">Status <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th data-sort="tech_experience">Tech Exp <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
                   <th>Interests</th>
-                  <th>Learning Style</th>
-                  <th>Main Goal</th>
-                  <th>Available Time</th>
-                  <th>Budget</th>
+                  <th data-sort="learning_style">Learning Style <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th data-sort="main_goal">Main Goal <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th data-sort="available_time">Schedule <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
+                  <th data-sort="budget_range">Budget <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
                   <th>Career Path</th>
-                  <th>Course Picked</th>
+                  <th data-sort="course_picked">Course Picked <i data-lucide="arrow-up-down" class="sort-icon"></i></th>
                   <th>Achievement Goal</th>
                 </tr>
               </thead>
@@ -331,11 +374,11 @@
   <div id="supabase-modal" class="modal-overlay hidden">
     <div class="modal-content glass-panel">
       <div class="modal-header">
-        <h3><i data-lucide="database"></i> Supabase Configuration</h3>
+        <h3><i data-lucide="database"></i> Supabase Project Setup</h3>
         <button id="close-modal-btn" class="icon-btn"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">Connect BitFinder Survey directly to your Supabase project table for cloud persistence.</p>
+        <p class="modal-desc">Connect BitFinder Survey directly to your Supabase project for PostgreSQL persistence & Auth.</p>
         
         <div class="input-group">
           <label for="sb-url-input">Supabase Project URL</label>
@@ -343,31 +386,15 @@
         </div>
         
         <div class="input-group">
-          <label for="sb-key-input">Supabase Anon Key</label>
+          <label for="sb-key-input">Supabase Anon Public Key</label>
           <input type="password" id="sb-key-input" class="custom-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6...">
         </div>
 
         <div class="sql-snippet-box">
           <div class="sql-header">
-            <span>SQL Table Schema (Copy into Supabase SQL Editor)</span>
-            <button id="copy-sql-btn" class="btn btn-link btn-xs"><i data-lucide="copy"></i> Copy SQL</button>
+            <span>Migration SQL File Location</span>
           </div>
-          <pre><code id="sql-code-snippet">CREATE TABLE bitfinder_surveys (
-  id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-  age_range TEXT,
-  education_level TEXT,
-  current_status TEXT,
-  tech_experience TEXT,
-  interest_areas TEXT,
-  learning_style TEXT,
-  main_goal TEXT,
-  available_time TEXT,
-  budget_range TEXT,
-  career_path TEXT,
-  course_picked TEXT,
-  achievement_text TEXT,
-  submitted_at TIMESTAMPTZ DEFAULT NOW()
-);</code></pre>
+          <p class="sql-hint">The full SQL migration file with RLS policies is saved at: <code>supabase/migrations/01_create_survey_responses.sql</code></p>
         </div>
       </div>
       <div class="modal-footer">
