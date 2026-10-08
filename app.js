@@ -572,46 +572,6 @@
     window.addEventListener('popstate', handleRoute);
     window.addEventListener('hashchange', handleRoute);
   }
-    DOM.supabaseConfigBtn.addEventListener('click', () => {
-      DOM.sbUrlInput.value = state.supabaseUrl;
-      DOM.sbKeyInput.value = state.supabaseKey;
-      DOM.supabaseModal.classList.remove('hidden');
-    });
-
-    DOM.closeModalBtn.addEventListener('click', () => {
-      DOM.supabaseModal.classList.add('hidden');
-    });
-
-    DOM.saveSbBtn.addEventListener('click', () => {
-      state.supabaseUrl = DOM.sbUrlInput.value.trim();
-      state.supabaseKey = DOM.sbKeyInput.value.trim();
-      localStorage.setItem('bitfinder_sb_url', state.supabaseUrl);
-      localStorage.setItem('bitfinder_sb_key', state.supabaseKey);
-      setupSupabaseClient();
-      DOM.supabaseModal.classList.add('hidden');
-      showToast('Supabase credentials saved successfully!', false);
-    });
-
-    DOM.testSbBtn.addEventListener('click', async () => {
-      const tempUrl = DOM.sbUrlInput.value.trim();
-      const tempKey = DOM.sbKeyInput.value.trim();
-      if (!tempUrl || !tempKey) {
-        alert('Please enter both Supabase URL and Key.');
-        return;
-      }
-      try {
-        const tempClient = window.supabase.createClient(tempUrl, tempKey);
-        const { error } = await tempClient.from('survey_responses').select('id').limit(1);
-        if (error && error.code !== 'PGRST116') {
-          alert('Supabase connection note: ' + error.message);
-        } else {
-          alert('Success! Connected to Supabase project table survey_responses.');
-        }
-      } catch (err) {
-        alert('Connection test failed: ' + err.message);
-      }
-    });
-  }
 
   // Handle Admin Login with Supabase Auth
   async function handleAdminLogin(e) {
