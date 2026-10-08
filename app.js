@@ -26,6 +26,7 @@
     },
     adminAuthenticated: false,
     adminUser: null,
+    authLoading: true,
     supabaseUrl: localStorage.getItem('bitfinder_sb_url') || 'https://najwfntqeamtcbqgtfqa.supabase.co',
     supabaseKey: localStorage.getItem('bitfinder_sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5handmbnRxZWFtdGNicWd0ZnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NTg4OTIsImV4cCI6MjEwNzAzNDg5Mn0.Dq7rIuvj0j7gk0iRyh7xlKzEwC3_WUQPDdY1lR9DgqM',
     supabaseClient: null,
@@ -290,6 +291,7 @@
     restartBtn: document.getElementById('restart-btn'),
 
     // Admin Controls
+    adminLoadingBox: document.getElementById('admin-loading-box'),
     adminAuthBox: document.getElementById('admin-auth-box'),
     adminLoginForm: document.getElementById('admin-login-form'),
     adminEmailInput: document.getElementById('admin-email-input'),
@@ -328,19 +330,6 @@
     saveSbBtn: document.getElementById('save-sb-btn')
   };
 
-  // Initialize Application
-  function init() {
-    setupSupabaseClient();
-    bindEvents();
-    renderQRCode();
-    checkExistingSession();
-
-    // Check URL route hash for #admin
-    if (window.location.hash === '#admin') {
-      showScreen(DOM.adminScreen);
-    }
-  }
-
   // Toast Notification Helper
   function showToast(message, isError = true) {
     if (!DOM.toastBanner) return;
@@ -358,33 +347,105 @@
     if (DOM.toastBanner) DOM.toastBanner.classList.add('hidden');
   }
 
-  // Supabase Client Setup
+  // Supabase Client Setup with Session Persistence Options
   function setupSupabaseClient() {
     if (state.supabaseUrl && state.supabaseKey && window.supabase) {
       try {
-        state.supabaseClient = window.supabase.createClient(state.supabaseUrl, state.supabaseKey);
+        state.supabaseClient = window.supabase.createClient(state.supabaseUrl, state.supabaseKey, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storage: window.localStorage
+          }
+        });
       } catch (err) {
         console.warn('Supabase init failed:', err);
       }
     }
   }
 
-  // Check Active Supabase Auth Session
-  async function checkExistingSession() {
+  // Initialize Auth & Router (Restores session before route guard runs)
+  async function initAuthAndRouting() {
+    setupSupabaseClient();
+    bindEvents();
+    renderQRCode();
+
+    state.authLoading = true;
+
     if (state.supabaseClient) {
       try {
         const { data: { session } } = await state.supabaseClient.auth.getSession();
-        if (session && session.user) {
-          state.adminAuthenticated = true;
-          state.adminUser = session.user;
-          DOM.adminUserBadge.innerHTML = `<i data-lucide="user-check"></i> ${session.user.email}`;
-          DOM.adminAuthBox.classList.add('hidden');
-          DOM.adminContentBox.classList.remove('hidden');
-          loadAdminDashboardData();
-        }
-      } catch (e) {
-        console.log('No existing session:', e);
+        updateAuthState(session);
+
+        state.supabaseClient.auth.onAuthStateChange((_event, session) => {
+          updateAuthState(session);
+          handleRoute();
+        });
+      } catch (err) {
+        console.warn('Session restoration exception:', err);
+        updateAuthState(null);
       }
+    } else {
+      updateAuthState(null);
+    }
+
+    state.authLoading = false;
+    handleRoute();
+  }
+
+  function updateAuthState(session) {
+    if (session && session.user) {
+      state.adminAuthenticated = true;
+      state.adminUser = session.user;
+      if (DOM.adminUserBadge) {
+        DOM.adminUserBadge.innerHTML = `<i data-lucide="user-check"></i> ${session.user.email}`;
+      }
+    } else {
+      state.adminAuthenticated = false;
+      state.adminUser = null;
+    }
+  }
+
+  // Router Helper
+  function isCurrentRouteAdmin() {
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    return path.startsWith('/admin') || hash === '#admin' || hash.startsWith('#admin');
+  }
+
+  function handleRoute() {
+    if (isCurrentRouteAdmin()) {
+      // ALWAYS show adminScreen and NEVER redirect to student survey/landing page!
+      showScreen(DOM.adminScreen);
+
+      if (state.authLoading) {
+        if (DOM.adminLoadingBox) DOM.adminLoadingBox.classList.remove('hidden');
+        if (DOM.adminAuthBox) DOM.adminAuthBox.classList.add('hidden');
+        if (DOM.adminContentBox) DOM.adminContentBox.classList.add('hidden');
+      } else if (state.adminAuthenticated) {
+        if (DOM.adminLoadingBox) DOM.adminLoadingBox.classList.add('hidden');
+        if (DOM.adminAuthBox) DOM.adminAuthBox.classList.add('hidden');
+        if (DOM.adminContentBox) DOM.adminContentBox.classList.remove('hidden');
+        loadAdminDashboardData();
+      } else {
+        if (DOM.adminLoadingBox) DOM.adminLoadingBox.classList.add('hidden');
+        if (DOM.adminAuthBox) DOM.adminAuthBox.classList.remove('hidden');
+        if (DOM.adminContentBox) DOM.adminContentBox.classList.add('hidden');
+      }
+    } else {
+      if (DOM.adminLoadingBox) DOM.adminLoadingBox.classList.add('hidden');
+      if (state.currentStep > 0 && state.currentStep <= questions.length) {
+        showScreen(DOM.questionScreen);
+      } else if (state.hasSubmitted) {
+        showScreen(DOM.thankyouScreen);
+      } else {
+        showScreen(DOM.landingScreen);
+      }
+    }
+
+    if (window.lucide) {
+      lucide.createIcons();
     }
   }
 
@@ -401,7 +462,8 @@
     });
 
     DOM.adminTriggerBtn.addEventListener('click', () => {
-      showScreen(DOM.adminScreen);
+      window.location.hash = '#admin';
+      handleRoute();
     });
 
     DOM.backBtn.addEventListener('click', handleBack);
@@ -410,14 +472,21 @@
     DOM.achievementTextarea.addEventListener('input', handleTextareaInput);
 
     DOM.copyLinkBtn.addEventListener('click', handleCopyLink);
-    DOM.viewAdminBtn.addEventListener('click', () => showScreen(DOM.adminScreen));
+    DOM.viewAdminBtn.addEventListener('click', () => {
+      window.location.hash = '#admin';
+      handleRoute();
+    });
     DOM.restartBtn.addEventListener('click', handleRestart);
 
     // Admin Auth Form (Supabase Auth Login)
     DOM.adminLoginForm.addEventListener('submit', handleAdminLogin);
 
     DOM.adminCancelBtn.addEventListener('click', () => {
-      showScreen(DOM.landingScreen);
+      window.location.hash = '';
+      if (window.location.pathname.startsWith('/admin')) {
+        window.history.pushState(null, '', '/');
+      }
+      handleRoute();
     });
 
     DOM.adminLogoutBtn.addEventListener('click', async () => {
@@ -428,13 +497,15 @@
       state.adminUser = null;
       DOM.adminEmailInput.value = '';
       DOM.adminPassInput.value = '';
-      DOM.adminAuthBox.classList.remove('hidden');
-      DOM.adminContentBox.classList.add('hidden');
-      showScreen(DOM.landingScreen);
+      handleRoute();
     });
 
     DOM.closeAdminBtn.addEventListener('click', () => {
-      showScreen(DOM.landingScreen);
+      window.location.hash = '';
+      if (window.location.pathname.startsWith('/admin')) {
+        window.history.pushState(null, '', '/');
+      }
+      handleRoute();
     });
 
     DOM.adminSearchInput.addEventListener('input', () => {
@@ -458,6 +529,49 @@
     });
 
     // Supabase Modal Events
+    DOM.supabaseConfigBtn.addEventListener('click', () => {
+      DOM.sbUrlInput.value = state.supabaseUrl;
+      DOM.sbKeyInput.value = state.supabaseKey;
+      DOM.supabaseModal.classList.remove('hidden');
+    });
+
+    DOM.closeModalBtn.addEventListener('click', () => {
+      DOM.supabaseModal.classList.add('hidden');
+    });
+
+    DOM.saveSbBtn.addEventListener('click', () => {
+      state.supabaseUrl = DOM.sbUrlInput.value.trim();
+      state.supabaseKey = DOM.sbKeyInput.value.trim();
+      localStorage.setItem('bitfinder_sb_url', state.supabaseUrl);
+      localStorage.setItem('bitfinder_sb_key', state.supabaseKey);
+      setupSupabaseClient();
+      DOM.supabaseModal.classList.add('hidden');
+      showToast('Supabase credentials saved successfully!', false);
+    });
+
+    DOM.testSbBtn.addEventListener('click', async () => {
+      const tempUrl = DOM.sbUrlInput.value.trim();
+      const tempKey = DOM.sbKeyInput.value.trim();
+      if (!tempUrl || !tempKey) {
+        alert('Please enter both Supabase URL and Key.');
+        return;
+      }
+      try {
+        const tempClient = window.supabase.createClient(tempUrl, tempKey);
+        const { error } = await tempClient.from('survey_responses').select('id').limit(1);
+        if (error && error.code !== 'PGRST116') {
+          alert('Supabase connection note: ' + error.message);
+        } else {
+          alert('Success! Connected to Supabase project table survey_responses.');
+        }
+      } catch (err) {
+        alert('Connection test failed: ' + err.message);
+      }
+    });
+
+    window.addEventListener('popstate', handleRoute);
+    window.addEventListener('hashchange', handleRoute);
+  }
     DOM.supabaseConfigBtn.addEventListener('click', () => {
       DOM.sbUrlInput.value = state.supabaseUrl;
       DOM.sbKeyInput.value = state.supabaseKey;
@@ -1259,9 +1373,9 @@
 
   // Execute on DOM Ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', initAuthAndRouting);
   } else {
-    init();
+    initAuthAndRouting();
   }
 
 })();

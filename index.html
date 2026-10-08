@@ -207,6 +207,15 @@
     <!-- ==================== ADMIN DASHBOARD ==================== -->
     <section id="admin-screen" class="screen">
       
+      <!-- Admin Loading Indicator (Shown while session restores) -->
+      <div id="admin-loading-box" class="admin-auth-card glass-panel hidden">
+        <div class="shield-badge">
+          <i data-lucide="loader-2" class="spin-icon"></i>
+        </div>
+        <h2 style="font-family: var(--font-heading); font-size: 1.3rem; margin-bottom: 6px;">Restoring Admin Session</h2>
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">Verifying authorization credentials with Supabase...</p>
+      </div>
+
       <!-- Admin Login Box (Supabase Auth Email + Password) -->
       <div id="admin-auth-box" class="admin-auth-card glass-panel">
         <div class="auth-header">
